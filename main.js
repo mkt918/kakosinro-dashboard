@@ -12,8 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allData = [];
     let headers = [];
+    let sortCol = null;
+    let sortAsc = true;
 
-    // 表示する列（産業分類・職業分類の生コードは非表示、名称列を使用）
     const DISPLAY_COLS = [
         '年度', '生徒番号', '性別', '学科', '事業所名',
         '就業先の都道府県名', '就業先所在地', '求人番号',
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
             complete: (results) => {
                 allData = results.data;
                 headers = results.meta.fields;
+                sortCol = null;
+                sortAsc = true;
                 initFilters();
                 applyFilters();
             },
@@ -61,9 +64,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function getSorted(data) {
+        if (!sortCol) return data;
+        return [...data].sort((a, b) => {
+            const va = String(a[sortCol] ?? '');
+            const vb = String(b[sortCol] ?? '');
+            const cmp = va.localeCompare(vb, 'ja');
+            return sortAsc ? cmp : -cmp;
+        });
+    }
+
     function applyFilters() {
-        const data = getFiltered();
-        updateSummary(data);
+        const data = getSorted(getFiltered());
+        updateSummary(getFiltered());
         renderTable(data);
     }
 
@@ -76,7 +89,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTable(data) {
         const cols = DISPLAY_COLS.filter(c => headers.includes(c));
 
-        tableHeader.innerHTML = cols.map(h => `<th>${h}</th>`).join('');
+        tableHeader.innerHTML = cols.map(h => {
+            const active = h === sortCol;
+            const arrow  = active ? (sortAsc ? ' ▲' : ' ▼') : '';
+            return `<th class="sortable${active ? ' sort-active' : ''}" data-col="${h}">${h}${arrow}</th>`;
+        }).join('');
+
+        tableHeader.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (sortCol === col) {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortCol = col;
+                    sortAsc = true;
+                }
+                applyFilters();
+            });
+        });
 
         if (data.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="${cols.length || 1}" class="empty-state">データが見つかりません</td></tr>`;
